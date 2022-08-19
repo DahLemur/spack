@@ -7,6 +7,7 @@ from __future__ import division, print_function
 import collections
 import copy
 import itertools
+import math
 import os
 import pprint
 import re
@@ -741,6 +742,7 @@ class SpackSolverSetup(object):
         This uses self.declared_versions so that we include any versions
         that arise from a spec.
         """
+        import random
         def key_fn(version):
             # Origins are sorted by precedence defined in `version_origin_str`,
             # then by order added.
@@ -755,6 +757,7 @@ class SpackSolverSetup(object):
                 pkg.name, declared_version.version, weight,
                 version_origin_str[declared_version.origin]
             ))
+            #print('   Weight:', weight)
 
         # Declare deprecated versions for this package, if any
         deprecated = self.deprecated_versions[pkg.name]
@@ -1813,6 +1816,7 @@ class SpackSolverSetup(object):
             specs (list): list of Specs to solve
             reuse (None or list): list of concrete specs that can be reused
         """
+        ReliaBuild_flag = True
         self._condition_id_counter = itertools.count()
 
         # preliminary checks
@@ -1886,6 +1890,11 @@ class SpackSolverSetup(object):
                 for dep in spec.traverse():
                     _develop_specs_from_env(dep, env)
 
+        if ReliaBuild_flag:
+                #Activate optimality:
+                self.gen.fact(fn.use_optimality()) 
+                self.generate_pairwise_facts(possible)
+
         self.gen.h1('Spec Constraints')
         self.literal_specs(specs)
 
@@ -1920,6 +1929,35 @@ class SpackSolverSetup(object):
 
         if self.concretize_everything:
             self.gen.fact(fn.concretize_everything())
+
+
+    def generate_pairwise_facts(self, possible):
+            import pickle
+            from os import path
+            import io
+            for key in possible.keys():
+                    for dname in possible[key]:
+                            if isinstance(key, str) and isinstance(dname, str):
+                                    direct_str = './pickles3/%s#%s.pkl' % (key, dname)
+                                    #print('Path:', direct_str, end="\t")
+                                    #print('Exists?:', path.exists(direct_str))
+                                    if path.exists(direct_str):
+                                            infile = open(direct_str, 'rb')
+                                            data_pkl = pickle.load(infile, encoding='latin1')
+                                            self.pairwise_facts(packagize(key), packagize(dname), data_pkl)
+                                            infile.close()
+
+    def pairwise_facts(self, pkg, direct_dep, df):
+            df_cols = df.columns
+            compiler = 'gcc'
+            compiler_ver = '4.9.3'
+            for dep_ver in df_cols:
+                    for ver, val in zip(df.index, df[dep_ver]):
+                        #print('%s: %s, %s: %s, val: %s' % (pkg.name, ver, direct_dep.name, dep_ver, compiler, compiler_ver, 4.5-val))
+                        #Generate pairwise facts:
+                        asp_value = math.floor((0 - val) * 100)
+                        self.gen.fact(fn.pairwise_data(pkg.name, direct_dep.name, ver, dep_ver, compiler, compiler_ver, asp_value))
+                    self.gen.newline()
 
 
 class SpecBuilder(object):

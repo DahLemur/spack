@@ -44,3 +44,4 @@
 #show error/7.
 
 % debug
+#show pairwise_weight/3.

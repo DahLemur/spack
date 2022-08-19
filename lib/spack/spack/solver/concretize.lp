@@ -1081,12 +1081,31 @@ opt_criterion(100, "number of packages to build (vs. reuse)").
 #minimize { 1@100,Package : build(Package), optimize_for_reuse() }.
 #defined optimize_for_reuse/0.
 
-% Minimize the number of deprecated versions being used
-opt_criterion(15, "deprecated versions used").
+
+pairwise_weight(Package, Dependency, Weight)
+ :- pairwise_data(Package, Dependency, Version, DependencyVersion, Compiler, CompilerVersion, Weight),
+    node(Package), node(Dependency),
+    version(Package, Version), version(Dependency, DependencyVersion),
+    depends_on(Package, Dependency),
+    node_compiler(Package, Compiler), node_compiler(Dependency, Compiler),
+    node_compiler_version(Package, Compiler, CompilerVersion), node_compiler_version(Dependency, Compiler, CompilerVersion).
+
+% pairwise
+opt_criterion(15, "Reliabuild").
 #minimize{ 0@215: #true }.
 #minimize{ 0@15: #true }.
 #minimize{
-    1@15+Priority,Package
+    Weight@15+Priority,Package,Dependency
+    : pairwise_weight(Package, Dependency, Weight),
+      build_priority(Package, Priority)
+}.
+
+% Minimize the number of deprecated versions being used
+opt_criterion(16, "deprecated versions used").
+#minimize{ 0@216: #true }.
+#minimize{ 0@16: #true }.
+#minimize{
+    1@16+Priority,Package
     : deprecated(Package, _),
       build_priority(Package, Priority)
 }.
